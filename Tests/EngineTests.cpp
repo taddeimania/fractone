@@ -1,6 +1,8 @@
 // EngineTests.cpp — behaviour tests for the Fractone engine (no JUCE needed).
 #include "Engine/Engine.h"
+#include "Engine/Dice.h"
 
+#include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <functional>
@@ -504,6 +506,95 @@ void testMidi()
     near (e.currentVcoHz (0), kC4Hz * 2.0 * std::pow (2.0, 2.5), 3.0, "CC4/36 adds +2.5 octaves");
 }
 
+void testDice()
+{
+    std::puts ("dice");
+    const Quant modes[] { Quant::off, Quant::et12, Quant::et8, Quant::ji12, Quant::ji8 };
+    const int ranges[] { 1, 2, 5 };
+    int mixedFlavour = 0;
+    int rolls = 0, badInterval = 0, outOfRange = 0, offScale = 0, triple = 0, unchanged = 0, notOnGrid = 0;
+    int bigLeaps = 0, leaps = 0;
+
+    for (auto q : modes)
+        for (int range : ranges)
+            for (int a = -20; a <= 20; ++a)
+                for (uint64_t seed = 1; seed <= 25; ++seed)
+                {
+                    const float anchor = (float) a / 20.0f;
+                    const auto steps = dice::rollSteps (anchor, range, q, seed * 7919 + (uint64_t) (a + 100));
+                    ++rolls;
+
+                    // What step 1 actually plays, in octaves.
+                    const double a0 = q == Quant::off ? anchor * range : quantizeOctaves (anchor * range, q);
+                    std::array<double, 4> notes { a0, 0, 0, 0 };
+                    bool same = true;
+                    for (int i = 0; i < 3; ++i)
+                    {
+                        const float k = steps[(size_t) i];
+                        if (k < -1.0f || k > 1.0f) ++outOfRange;
+                        const double raw = (double) k * range;
+                        const double played = q == Quant::off ? raw : quantizeOctaves (raw, q);
+                        if (std::abs (played - raw) > 1.0e-6) ++notOnGrid;   // knob sits exactly on the note
+                        notes[(size_t) i + 1] = played;
+                        const int semis = (int) std::lround ((played - a0) * 12.0);
+                        if (! dice::isConsonant (semis)) ++badInterval;
+                        if (dice::isDiatonic (q) && ! dice::inScale ((int) std::lround (played * 12.0), q)) ++offScale;
+                        if (std::abs (played - a0) > 1.0e-6) same = false;
+                    }
+                    if (same) ++unchanged;
+                    {
+                        // Thirds and sixths of one flavour only within a roll.
+                        bool hasMinor = false, hasMajor = false;
+                        for (int i = 1; i < 4; ++i)
+                        {
+                            const int m = dice::mod12 ((int) std::lround ((notes[(size_t) i] - a0) * 12.0));
+                            hasMinor = hasMinor || m == 3 || m == 8;
+                            hasMajor = hasMajor || m == 4 || m == 9;
+                        }
+                        if (! dice::isDiatonic (q) && hasMinor && hasMajor) ++mixedFlavour;
+                    }
+                    for (int i = 2; i < 4; ++i)
+                        if (std::abs (notes[(size_t) i] - notes[(size_t) i - 1]) < 1.0e-6
+                            && std::abs (notes[(size_t) i - 1] - notes[(size_t) i - 2]) < 1.0e-6)
+                            ++triple;
+                    for (int i = 1; i < 4; ++i)
+                    {
+                        ++leaps;
+                        if (std::abs (notes[(size_t) i] - notes[(size_t) i - 1]) > 1.0 + 1.0e-6) ++bigLeaps;
+                    }
+                }
+
+    check (badInterval == 0, "every rolled step is consonant with step 1 (" + std::to_string (badInterval) + " bad)");
+    check (outOfRange == 0, "rolled knobs stay within -1..+1");
+    check (offScale == 0, "8-step modes stay in the scale (" + std::to_string (offScale) + " off)");
+    check (notOnGrid == 0, "quantized rolls sit exactly on their notes (" + std::to_string (notOnGrid) + ")");
+    check (mixedFlavour == 0, "chromatic rolls don't mix major and minor 3rds/6ths (" + std::to_string (mixedFlavour) + ")");
+    check (triple == 0, "no note three times in a row (" + std::to_string (triple) + ")");
+    check (unchanged == 0, "every roll changes at least one step (" + std::to_string (unchanged) + " of " + std::to_string (rolls) + ")");
+    check (bigLeaps * 20 < leaps, "leaps over an octave are rare (" + std::to_string (bigLeaps) + " of " + std::to_string (leaps) + ")");
+
+    // Same seed, same result; different seeds give variety.
+    const auto r1 = dice::rollSteps (0.0f, 2, Quant::et12, 42);
+    const auto r2 = dice::rollSteps (0.0f, 2, Quant::et12, 42);
+    check (r1 == r2, "a roll is repeatable for a given seed");
+    int distinct = 0;
+    std::vector<std::array<float, 3>> seen;
+    for (uint64_t sd = 1; sd <= 40; ++sd)
+    {
+        const auto r = dice::rollSteps (0.0f, 2, Quant::et12, sd);
+        if (std::find (seen.begin(), seen.end(), r) == seen.end()) { seen.push_back (r); ++distinct; }
+    }
+    check (distinct >= 20, "rolls vary (" + std::to_string (distinct) + " distinct of 40)");
+
+    // Example: step 1 at C (centre), 12-ET, +/-1 oct -> only C, Eb, E, F, G, Ab, A (+ octaves).
+    const auto ex = dice::rollSteps (0.0f, 1, Quant::et12, 3);
+    for (float k : ex)
+    {
+        const int s = (int) std::lround (k * 12.0f);
+        check (dice::isConsonant (s), "example step " + std::to_string (s) + " st is consonant with C");
+    }
+}
+
 void testAudio()
 {
     std::puts ("audio");
@@ -570,6 +661,7 @@ int main()
     testPatching();
     testSequencerAssign();
     testMidi();
+    testDice();
     testAudio();
 
     std::printf ("\n%d checks, %d failures\n", checks, failures);

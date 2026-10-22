@@ -1,5 +1,6 @@
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
+#include "Engine/Dice.h"
 
 using namespace fractone;
 
@@ -40,13 +41,47 @@ FractoneProcessor::FractoneProcessor()
 
 FractoneProcessor::~FractoneProcessor()
 {
+    cancelPendingUpdate();
     for (auto& kv : params)
         apvts.removeParameterListener (kv.first, this);
 }
 
-void FractoneProcessor::parameterChanged (const juce::String&, float)
+void FractoneProcessor::parameterChanged (const juce::String& id, float newValue)
 {
+    for (int s = 0; s < 2; ++s)
+        if (id == ids::diceSeq (s))
+        {
+            // Roll when the trigger switches on. This can arrive on the audio
+            // thread (automation), so the roll itself happens on the message thread.
+            const bool on = newValue > 0.5f;
+            if (on && ! diceLast[s].exchange (on))
+            {
+                dicePending[s].store (true);
+                triggerAsyncUpdate();
+            }
+            diceLast[s].store (on);
+            return; // the rolled steps mark the preset as edited themselves
+        }
+
     presets.markEdited();
+}
+
+void FractoneProcessor::handleAsyncUpdate()
+{
+    for (int s = 0; s < 2; ++s)
+        if (dicePending[s].exchange (false))
+            rollDice (s);
+}
+
+void FractoneProcessor::triggerDice (int seq)
+{
+    if (auto* param = apvts.getParameter (ids::diceSeq (seq)))
+    {
+        param->beginChangeGesture();
+        param->setValueNotifyingHost (1.0f);
+        param->setValueNotifyingHost (0.0f);
+        param->endChangeGesture();
+    }
 }
 
 float FractoneProcessor::get (const juce::String& id) const
@@ -282,6 +317,24 @@ void FractoneProcessor::disconnect (int input)
     patchVersion.fetch_add (1);
 }
 
+void FractoneProcessor::rollDice (int seq)
+{
+    if (seq < 0 || seq > 1)
+        return;
+    const float anchor = get (ids::step (seq, 0));
+    const int   range  = seqOctRange (juce::roundToInt (get (ids::seqOct)));
+    const auto  quant  = (Quant) juce::jlimit (0, 4, juce::roundToInt (get (ids::quantize)));
+    const auto  steps  = dice::rollSteps (anchor, range, quant, (uint64_t) juce::Random::getSystemRandom().nextInt64());
+
+    for (int i = 0; i < 3; ++i)
+        if (auto* param = apvts.getParameter (ids::step (seq, i + 1)))
+        {
+            param->beginChangeGesture();
+            param->setValueNotifyingHost (param->convertTo0to1 (steps[(size_t) i]));
+            param->endChangeGesture();
+        }
+}
+
 void FractoneProcessor::clearPatch()
 {
     for (auto& s : patchSrc)
@@ -370,8 +423,22 @@ void FractoneProcessor::restoreState (const juce::ValueTree& stateIn, bool asPre
         pendingPlayState.store (true);
     }
 
+    // Restoring a session or preset never rolls: triggers always come back off.
+    for (int s = 0; s < 2; ++s)
+        for (auto child : state)
+            if (child.getProperty ("id").toString() == ids::diceSeq (s))
+                child.setProperty ("value", 0.0f, nullptr);
+    for (auto& d : diceLast)
+        d.store (true); // ignore any edge caused by the restore itself
+
     apvts.replaceState (state);
     setPatch (patch);
+
+    for (int s = 0; s < 2; ++s)
+    {
+        dicePending[s].store (false);
+        diceLast[s].store (get (ids::diceSeq (s)) > 0.5f);
+    }
 }
 
 void FractoneProcessor::applyFactoryPreset (const Preset& preset)

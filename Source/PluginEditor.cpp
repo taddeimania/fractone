@@ -112,6 +112,19 @@ FractonePanel::FractonePanel (FractoneProcessor& p) : proc (p), apvts (p.apvts)
             addLed (stepLeds[s][i], R (stepX[i], s == 0 ? 289.0f : 383.0f), 22.0f);
         }
 
+    for (int s = 0; s < 2; ++s)
+    {
+        diceBtn[s] = std::make_unique<PanelButton> ("DICE");
+        addButton (*diceBtn[s], R (397.0f, s == 0 ? 211.0f : 305.0f), 42.0f, 16.0f,
+                   "DICE: keep step 1 and roll steps 2-4 to consonant intervals from it "
+                   "(3rds, 4ths, 5ths, 6ths, octaves), within SEQ OCT and the QUANTIZE scale. "
+                   "Click again to re-roll; your host's undo brings back the previous steps. "
+                   "Best with OSC assigned: with only SUB 1/SUB 2 assigned the steps move divisors instead of pitch. "
+                   "MIDI-mappable as the \"Dice Seq " + juce::String (s + 1) + "\" parameter.");
+        diceBtn[s]->setFontHeight (9.0f);
+        diceBtn[s]->onClick = [this, s] { proc.triggerDice (s); };
+    }
+
     // --- Rhythm generators -----------------------------------------------------------
     for (int r = 0; r < 4; ++r)
     {

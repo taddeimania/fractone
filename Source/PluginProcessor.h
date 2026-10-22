@@ -9,7 +9,8 @@
 #include <unordered_map>
 
 class FractoneProcessor final : public juce::AudioProcessor,
-                                private juce::AudioProcessorValueTreeState::Listener
+                                private juce::AudioProcessorValueTreeState::Listener,
+                                private juce::AsyncUpdater
 {
 public:
     FractoneProcessor();
@@ -56,6 +57,18 @@ public:
     void uiNext()                     { nextPresses.fetch_add (1); }
     void uiTriggerHeld (bool down)    { triggerHeld.store (down); }
 
+    // DICE: keep step 1 of a sequencer and roll steps 2-4 to consonant
+    // intervals from it (message thread; changes go through the host params).
+    void rollDice (int seq);
+
+    // Panel DICE button: pulses the "Dice Seq N" parameter on and off, so a
+    // click goes through the same path as a MIDI-mapped or automated roll.
+    void triggerDice (int seq);
+
+    // Runs any rolls queued by the Dice parameters right away (for tests;
+    // normally they run on the message thread moments later).
+    void flushPendingDice() { handleUpdateNowIfNeeded(); }
+
     // --- State (presets & host) ----------------------------------------------
     juce::ValueTree captureState();
     // Restores a state. When `asPreset` is true the per-instance settings
@@ -83,6 +96,11 @@ private:
     fractone::EngineParams readParams() const;
     void handleMidi (const juce::MidiMessage&);
     void parameterChanged (const juce::String& id, float) override;
+    void handleAsyncUpdate() override;
+
+    // Dice parameters: last seen value (for switch-on detection) and queued rolls.
+    std::atomic<bool> diceLast[2] { { false }, { false } };
+    std::atomic<bool> dicePending[2] { { false }, { false } };
 
     fractone::Engine engine;
     std::array<std::atomic<int>, fractone::kNumInputs> patchSrc;

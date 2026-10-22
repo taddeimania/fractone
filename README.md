@@ -218,6 +218,35 @@ and counter-clockwise lowers it, within the **SEQ OCT** range. The LED shows
 the current step. A sequencer only moves when at least one rhythm generator is
 assigned to it.
 
+**DICE** (an addition that isn't on the hardware) writes a new phrase from
+step 1. Step 1 stays where you set it, and steps 2-4 each land a consonant
+interval above or below it: a 3rd, 4th, 5th, 6th, unison or octave, never a
+2nd, 7th or tritone. Rolls stay within the SEQ OCT range and follow
+QUANTIZE:
+
+- **8-ET and 8-JI**: every step stays in the scale.
+- **12-ET and 12-JI**: each roll is either major-flavoured or minor-flavoured,
+  so its thirds and sixths don't clash.
+
+Smaller moves are more likely than big leaps, and no note plays three times
+in a row. Click again to re-roll; your host's undo brings back the previous
+steps. DICE works best with OSC assigned. A sequencer assigned only to SUB 1
+or SUB 2 moves divisors rather than pitch, so its rolls won't sound like the
+same intervals.
+
+Both buttons are also host parameters, **Dice Seq 1** and **Dice Seq 2**, and
+each roll happens when the parameter switches on. To trigger them from a
+controller in Live:
+
+1. Click the device's **Configure** button.
+2. Click a DICE button so the parameter appears in the device.
+3. Use MIDI Map mode (⌘M) and press a pad or button.
+
+Map it as a momentary button: in a toggle mapping only every other press
+rolls. The same parameters work from Push, rack Macros and automation lanes;
+draw a short pulse every few bars and the phrase re-rolls as the song plays.
+Loading a preset or reopening a set never rolls.
+
 ### Polyrhythm
 Each **RHYTHM** knob divides the clock by an integer: **1 fully clockwise, 16
 fully counter-clockwise**, as on the hardware. Its **SEQ 1** and **SEQ 2**

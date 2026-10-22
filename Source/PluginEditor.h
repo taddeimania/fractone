@@ -53,6 +53,7 @@ private:
     // Sequencers
     Knob steps[2][4];
     Led  stepLeds[2][4];
+    std::unique_ptr<PanelButton> diceBtn[2];
 
     // Rhythm generators
     Knob rhythm[4];

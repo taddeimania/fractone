@@ -2,6 +2,7 @@
 //   FractoneSnapshot panel.png [presetIndex] [scale]     render the panel
 //   FractoneSnapshot sound.wav [presetIndex] [seconds]   render audio at 120 BPM (host playing)
 #include <juce_audio_utils/juce_audio_utils.h>
+#include <array>
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
 
@@ -65,6 +66,85 @@ int main (int argc, char** argv)
         expect (q->sourceFor (inVco2) == outSeq1 && q->sourceFor (inCutoff) == outSeq2, "session restore keeps cables");
         expect (q->presets.currentName() == p->presets.currentName(), "session restore keeps preset name");
         expect (std::abs (q->get (ids::resonance) - p->get (ids::resonance)) < 1e-4f, "session restore keeps knobs");
+
+        // DICE: step 1 untouched, steps 2-4 rolled, preset marked edited.
+        {
+            p->setCurrentProgram (0);
+            juce::Thread::sleep (400); // a person's click comes after the load settles
+            const float s1 = p->get (ids::step (0, 0));
+            const float s2b = p->get (ids::step (1, 1));
+            bool changed = false;
+            for (int t = 0; t < 5 && ! changed; ++t)
+            {
+                const float before[3] { p->get (ids::step (0, 1)), p->get (ids::step (0, 2)), p->get (ids::step (0, 3)) };
+                p->rollDice (0);
+                for (int i = 0; i < 3; ++i)
+                    changed = changed || std::abs (p->get (ids::step (0, i + 1)) - before[i]) > 1e-6f;
+            }
+            expect (changed, "DICE rolls steps 2-4");
+            expect (std::abs (p->get (ids::step (0, 0)) - s1) < 1e-7f, "DICE leaves step 1 alone");
+            expect (std::abs (p->get (ids::step (1, 1)) - s2b) < 1e-7f, "DICE on SEQ 1 leaves SEQ 2 alone");
+            expect (p->presets.isEdited(), "DICE marks the preset as edited");
+        }
+
+        // DICE as a host parameter (MIDI mapping, Push, Macros, automation).
+        {
+            auto* trig = p->apvts.getParameter (ids::diceSeq (1));
+            expect (trig != nullptr, "\"Dice Seq 2\" is a host parameter");
+            auto steps2 = [&] { return std::array<float, 3> { p->get (ids::step (1, 1)), p->get (ids::step (1, 2)), p->get (ids::step (1, 3)) }; };
+
+            // Switch-on rolls (try a few times: a roll can in principle repeat the old steps).
+            bool rolled = false;
+            for (int t = 0; t < 5 && ! rolled; ++t)
+            {
+                const auto before = steps2();
+                trig->setValueNotifyingHost (1.0f);
+                p->flushPendingDice();
+                rolled = steps2() != before;
+                trig->setValueNotifyingHost (0.0f);
+                p->flushPendingDice();
+            }
+            expect (rolled, "switching Dice Seq 2 on rolls Sequencer 2");
+
+            const auto afterOff = steps2();
+            trig->setValueNotifyingHost (0.0f);
+            p->flushPendingDice();
+            expect (steps2() == afterOff, "switching it off does not roll");
+
+            int rolls = 0;
+            for (int t = 0; t < 6; ++t)
+            {
+                const auto before = steps2();
+                trig->setValueNotifyingHost (1.0f); p->flushPendingDice();
+                trig->setValueNotifyingHost (0.0f); p->flushPendingDice();
+                if (steps2() != before) ++rolls;
+            }
+            expect (rolls >= 4, "every new switch-on rolls again");
+
+            const auto beforeBtn = steps2();
+            bool btnRolled = false;
+            for (int t = 0; t < 5 && ! btnRolled; ++t)
+            {
+                p->triggerDice (1);
+                p->flushPendingDice();
+                btnRolled = steps2() != beforeBtn;
+            }
+            expect (btnRolled, "the panel DICE button rolls through the parameter");
+            expect (p->get (ids::diceSeq (1)) < 0.5f, "the panel button leaves the trigger off");
+
+            // A session saved while a trigger was on must not roll when reopened.
+            trig->setValueNotifyingHost (1.0f); p->flushPendingDice();
+            juce::MemoryBlock mb2;
+            p->getStateInformation (mb2);
+            trig->setValueNotifyingHost (0.0f); p->flushPendingDice();
+            auto r = std::make_unique<FractoneProcessor>();
+            r->setStateInformation (mb2.getData(), (int) mb2.getSize());
+            const auto restored = std::array<float, 3> { r->get (ids::step (1, 1)), r->get (ids::step (1, 2)), r->get (ids::step (1, 3)) };
+            r->flushPendingDice();
+            const auto later = std::array<float, 3> { r->get (ids::step (1, 1)), r->get (ids::step (1, 2)), r->get (ids::step (1, 3)) };
+            expect (restored == later, "reopening a session never rolls");
+            expect (r->get (ids::diceSeq (1)) < 0.5f, "triggers come back off after a restore");
+        }
 
         // A host latches the program count when it loads the plugin. Saving a
         // user preset used to grow that list, so the host clamped to its stale

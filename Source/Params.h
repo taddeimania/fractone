@@ -37,6 +37,9 @@ inline constexpr const char* logic        = "rhythm_logic";
 inline constexpr const char* midiChannel  = "midi_channel";
 inline constexpr const char* drift        = "drift";
 
+// DICE triggers: each switch-on rolls that sequencer's steps 2-4.
+inline juce::String diceSeq (int s)             { return "dice_seq" + juce::String (s + 1); }
+
 inline const juce::StringArray& waveNames()     { static const juce::StringArray n { "Square", "Pulse + Saw Subs", "Saw" }; return n; }
 inline const juce::StringArray& seqOctNames()   { static const juce::StringArray n { "+/-1 oct", "+/-2 oct", "+/-5 oct" }; return n; }
 inline const juce::StringArray& quantNames()    { static const juce::StringArray n { "Off", "12-ET", "8-ET", "12-JI", "8-JI" }; return n; }
@@ -193,6 +196,12 @@ inline juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout
         NormalisableRange<float> (0.0f, 1.0f), 0.25f, pct));
     layout.add (std::make_unique<AudioParameterInt> (ParameterID { ids::midiChannel, 1 }, "MIDI Channel", 0, 16, 0,
         AudioParameterIntAttributes().withStringFromValueFunction ([] (int v, int) { return v == 0 ? String ("All") : String (v); })));
+
+    // --- DICE triggers (map these to MIDI, a Push button, a Macro or automation) ---
+    for (int s = 0; s < 2; ++s)
+        layout.add (std::make_unique<AudioParameterBool> (ParameterID { ids::diceSeq (s), 1 },
+            "Dice Seq " + String (s + 1), false,
+            AudioParameterBoolAttributes().withStringFromValueFunction ([] (bool v, int) { return v ? String ("Roll") : String ("-"); })));
 
     return layout;
 }
