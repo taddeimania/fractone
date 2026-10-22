@@ -1,17 +1,17 @@
-# Builds and tests Fractone on macOS, Windows and Linux.
+# Builds and tests Fractone on macOS, Windows and Linux. Runs only when you
+# start it: Actions tab -> "Build" -> "Run workflow", then pick what to build
+# in "Use workflow from".
 #
-# Runs on every push and pull request. You can also run it by hand:
-# Actions tab -> "Build" -> "Run workflow". When a run finishes, the packaged
-# plugins are listed as downloads at the bottom of its summary page.
+# - A branch (e.g. main): build, test, and keep the packaged plugins as run
+#   artifacts for 30 days.
+# - A version tag (v1.2.3): the same builds, then a *draft* GitHub release is
+#   created with the three archives attached and the text from
+#   .github/release-notes.md. Review it on the Releases page and publish.
+#   The tag must match project(Fractone VERSION ...) in CMakeLists.txt.
 
 name: Build
 
 on:
-  push:
-    branches: [main]
-    paths-ignore: ["**.md", "docs/**"]
-  pull_request:
-    paths-ignore: ["**.md", "docs/**"]
   workflow_dispatch:
 
 permissions:
@@ -44,6 +44,17 @@ jobs:
 
     steps:
       - uses: actions/checkout@v7
+
+      # A release tag must match the version the plugin reports, or the
+      # downloads would be labelled with the wrong version.
+      - name: Check the tag matches the version
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          version=$(sed -n 's/^project(Fractone VERSION \([0-9.]*\).*/\1/p' CMakeLists.txt)
+          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME doesn't match CMakeLists.txt (VERSION $version). Update project(Fractone VERSION ...), commit, and move the tag."
+            exit 1
+          fi
 
       # JUCE is about 100 MB; keep a copy between runs instead of downloading it every time.
       - name: Restore JUCE
@@ -86,11 +97,13 @@ jobs:
         run: ctest --test-dir build -C Release --output-on-failure
 
       # Package the plugins ourselves so file permissions and the macOS code
-      # signature survive the download.
+      # signature survive the download. Release builds are named by version
+      # only; other builds also carry the commit.
       - name: Package
         run: |
           version=$(sed -n 's/^project(Fractone VERSION \([0-9.]*\).*/\1/p' CMakeLists.txt)
-          name="Fractone-${version}-${{ matrix.platform }}-${GITHUB_SHA::7}"
+          name="Fractone-${version}-${{ matrix.platform }}"
+          if [ "$GITHUB_REF_TYPE" != "tag" ]; then name="${name}-${GITHUB_SHA::7}"; fi
           art=build/Fractone_artefacts/Release
           stage="$RUNNER_TEMP/$name"
           mkdir -p "$stage"
@@ -118,3 +131,31 @@ jobs:
           archive: false
           if-no-files-found: error
           retention-days: 30
+
+  # Version tags only: gather the three archives into a draft release.
+  release:
+    name: Draft release
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Collect the builds
+        uses: actions/download-artifact@v8
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Create the draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          ls -la dist
+          gh release create "$GITHUB_REF_NAME" dist/* \
+            --draft \
+            --verify-tag \
+            --title "Fractone ${GITHUB_REF_NAME#v}" \
+            --notes-file .github/release-notes.md
