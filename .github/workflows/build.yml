@@ -1,0 +1,120 @@
+# Builds and tests Fractone on macOS, Windows and Linux.
+#
+# Runs on every push and pull request. You can also run it by hand:
+# Actions tab -> "Build" -> "Run workflow". When a run finishes, the packaged
+# plugins are listed as downloads at the bottom of its summary page.
+
+name: Build
+
+on:
+  push:
+    branches: [main]
+    paths-ignore: ["**.md", "docs/**"]
+  pull_request:
+    paths-ignore: ["**.md", "docs/**"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  JUCE_VERSION: "8.0.9"
+
+jobs:
+  build:
+    name: ${{ matrix.platform }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macOS
+            os: macos-latest
+          - platform: Windows
+            os: windows-latest
+          - platform: Linux
+            os: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - uses: actions/checkout@v7
+
+      # JUCE is about 100 MB; keep a copy between runs instead of downloading it every time.
+      - name: Restore JUCE
+        id: juce-cache
+        uses: actions/cache@v6
+        with:
+          path: .juce
+          key: juce-${{ env.JUCE_VERSION }}-${{ runner.os }}
+
+      - name: Download JUCE
+        if: steps.juce-cache.outputs.cache-hit != 'true'
+        run: git clone --depth 1 --branch "$JUCE_VERSION" https://github.com/juce-framework/JUCE.git .juce
+
+      - name: Install Linux dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libasound2-dev libfreetype-dev libfontconfig1-dev libgl1-mesa-dev \
+            libx11-dev libxcomposite-dev libxcursor-dev libxext-dev \
+            libxinerama-dev libxrandr-dev libxrender-dev
+
+      - name: Configure
+        run: |
+          extra=()
+          case "$RUNNER_OS" in
+            Windows) extra+=(-A x64) ;;
+            macOS)   extra+=("-DCMAKE_OSX_ARCHITECTURES=arm64;x86_64") ;;
+          esac
+          cmake -B build \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DFRACTONE_COPY_PLUGIN=OFF \
+            -DFRACTONE_JUCE_DIR=.juce \
+            "${extra[@]}"
+
+      - name: Build
+        run: cmake --build build --config Release --parallel 4
+
+      - name: Test
+        run: ctest --test-dir build -C Release --output-on-failure
+
+      # Package the plugins ourselves so file permissions and the macOS code
+      # signature survive the download.
+      - name: Package
+        run: |
+          version=$(sed -n 's/^project(Fractone VERSION \([0-9.]*\).*/\1/p' CMakeLists.txt)
+          name="Fractone-${version}-${{ matrix.platform }}-${GITHUB_SHA::7}"
+          art=build/Fractone_artefacts/Release
+          stage="$RUNNER_TEMP/$name"
+          mkdir -p "$stage"
+          cp -R "$art/VST3/Fractone.vst3" "$stage/"
+          case "$RUNNER_OS" in
+            macOS)
+              cp -R "$art/AU/Fractone.component" "$stage/"
+              cp -R "$art/Standalone/Fractone.app" "$stage/"
+              ditto -c -k --sequesterRsrc --keepParent "$stage" "$GITHUB_WORKSPACE/$name.zip"
+              echo "ARCHIVE=$name.zip" >> "$GITHUB_ENV" ;;
+            Windows)
+              cp "$art/Standalone/Fractone.exe" "$stage/"
+              (cd "$RUNNER_TEMP" && 7z a -tzip "$GITHUB_WORKSPACE/$name.zip" "$name" > /dev/null)
+              echo "ARCHIVE=$name.zip" >> "$GITHUB_ENV" ;;
+            Linux)
+              cp "$art/Standalone/Fractone" "$stage/"
+              tar -czf "$GITHUB_WORKSPACE/$name.tar.gz" -C "$RUNNER_TEMP" "$name"
+              echo "ARCHIVE=$name.tar.gz" >> "$GITHUB_ENV" ;;
+          esac
+
+      - name: Upload
+        uses: actions/upload-artifact@v7
+        with:
+          path: ${{ env.ARCHIVE }}
+          archive: false
+          if-no-files-found: error
+          retention-days: 30
