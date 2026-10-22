@@ -412,14 +412,41 @@ void FractoneProcessor::setStateInformation (const void* data, int sizeInBytes)
 // ---------------------------------------------------------------------------
 // Programs (the host's preset list mirrors the panel's)
 // ---------------------------------------------------------------------------
-int FractoneProcessor::getNumPrograms()            { return juce::jmax (1, presets.list().size()); }
-int FractoneProcessor::getCurrentProgram()         { return juce::jmax (0, presets.currentIndex()); }
-void FractoneProcessor::setCurrentProgram (int i)  { presets.loadIndex (i); }
+// Only the factory presets are exposed as host programs, and the count never
+// changes. Hosts latch the program count when they load the plugin, so a list
+// that grew as user presets were saved left the host clamping to its stale
+// maximum and writing that index straight back, which loaded the last factory
+// preset over whatever had just been chosen or saved.
+int FractoneProcessor::getNumPrograms() { return (int) factoryPresets().size(); }
+
+int FractoneProcessor::getCurrentProgram()
+{
+    // Track the panel while it is on a factory preset; hold the last one while
+    // it is on a user preset, since those have no program of their own.
+    const int index = presets.currentIndex();
+    if (index >= 0 && index < getNumPrograms() && ! presets.currentIsUser())
+        lastProgram = index;
+    return lastProgram;
+}
+
+void FractoneProcessor::setCurrentProgram (int i)
+{
+    i = juce::jlimit (0, getNumPrograms() - 1, i);
+
+    // While a user preset is loaded we report lastProgram as a placeholder, so
+    // the host echoing that same index back is not a request to change program.
+    if (i == lastProgram && presets.currentIsUser())
+        return;
+
+    lastProgram = i;
+    presets.loadIndex (i);   // factory presets occupy the first entries of list()
+}
 
 const juce::String FractoneProcessor::getProgramName (int index)
 {
-    const auto entries = presets.list();
-    return juce::isPositiveAndBelow (index, entries.size()) ? entries[index].name : juce::String();
+    const auto& factory = factoryPresets();
+    return juce::isPositiveAndBelow (index, (int) factory.size())
+         ? factory[(size_t) index].name : juce::String();
 }
 
 juce::AudioProcessorEditor* FractoneProcessor::createEditor()

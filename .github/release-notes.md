@@ -1,13 +1,9 @@
-The first release of Fractone, a polyrhythmic undertone synthesizer for any DAW that hosts VST3 or Audio Unit instruments.
+A bug-fix release. Fractone's sound and panel are unchanged from 1.0.0.
 
-### What's in it
-- **Two oscillators with two subharmonics each.** Every sub is the oscillator's pitch divided by 1 to 16, locked in phase. A three-way wave switch picks square, pulse with saw subs, or saw.
-- **Four rhythm generators and two 4-step sequencers.** Each rhythm divides the clock by 1 to 16 and can drive either sequencer, or both, for interlocking polyrhythms. Sequencers move the oscillator pitch, the sub divisors, or both. Steps can be quantized to 12- or 8-note scales in equal temperament or just intonation.
-- **A resonant 4-pole ladder filter** that saturates as you drive it and self-oscillates at full resonance, plus a six-channel mixer and attack/decay envelopes for the filter and VCA.
-- **A 32-point patchbay** with draggable cables for rerouting signals inside the instrument.
-- **Follows your DAW's tempo and transport**, with the clock rate selectable from 1/1 to 1/64. It can also run free from its own TEMPO knob.
-- **MIDI**: clip notes transpose the oscillators and open the envelopes, and a set of CCs controls pitch, sub divisors and envelope times.
-- **Presets**: 11 factory patches, plus your own presets saved as files with every knob, switch and cable.
+### Fixed
+- **Saving or loading one of your own presets no longer snaps the panel back to the last factory preset.** Fractone offered its whole preset list, factory patches and yours together, as the host's program list. A host settles on how many programs a plugin has when it loads it, so saving a preset made the list longer than the host believed it to be; the host clamped to the highest index it knew about and wrote that straight back, which loaded the last factory preset over the patch you had just saved or picked. Only the eleven factory patches are offered as host programs now, and that number never changes. Your DAW's own preset menu still selects them as before.
+
+Presets saved with 1.0.0 were always written to disk correctly, so nothing you saved has been lost. They load properly in this version.
 
 ### Install
 Download the file for your system below.
@@ -20,4 +16,6 @@ Download the file for your system below.
 - **Windows**: unzip and copy the `Fractone.vst3` folder into `C:\Program Files\Common Files\VST3`. `Fractone.exe` is the standalone version.
 - **Linux**: extract, then copy `Fractone.vst3` into `~/.vst3`.
 
-Then rescan plug-ins in your DAW. Fractone makes its own sound: drop it on a MIDI track and press play. The README has a section-by-section guide to the panel.
+Then rescan plug-ins in your DAW. If you are upgrading, replace the old files rather than keeping both.
+
+Fractone is a polyrhythmic undertone synthesizer that makes its own sound: drop it on a MIDI track and press play. The README has a section-by-section guide to the panel.

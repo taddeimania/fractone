@@ -100,6 +100,10 @@ private:
     std::array<float, 4> lastEgKnob { -1, -1, -1, -1 };
     int lastLogicKnob = -1;
 
+    // The factory program the host last saw. Held while a user preset is
+    // loaded, since user presets are not exposed as host programs.
+    int lastProgram = 0;
+
     std::vector<float> scratch;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (FractoneProcessor)

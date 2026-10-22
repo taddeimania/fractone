@@ -66,6 +66,48 @@ int main (int argc, char** argv)
         expect (q->presets.currentName() == p->presets.currentName(), "session restore keeps preset name");
         expect (std::abs (q->get (ids::resonance) - p->get (ids::resonance)) < 1e-4f, "session restore keeps knobs");
 
+        // A host latches the program count when it loads the plugin. Saving a
+        // user preset used to grow that list, so the host clamped to its stale
+        // maximum and wrote the index back, loading the last factory preset
+        // over whatever had just been saved or chosen.
+        {
+            auto h = std::make_unique<FractoneProcessor>();
+            const int programsAtLoad = h->getNumPrograms();
+            expect (programsAtLoad == (int) factoryPresets().size(),
+                    "only the factory presets are exposed as host programs");
+
+            h->presets.saveAs ("zzz Host Clamp");
+            expect (h->getNumPrograms() == programsAtLoad, "saving a user preset does not change the program count");
+
+            auto hostEcho = [&h, programsAtLoad]
+            {
+                h->setCurrentProgram (juce::jlimit (0, programsAtLoad - 1, h->getCurrentProgram()));
+            };
+
+            hostEcho();
+            expect (h->presets.currentName() == "zzz Host Clamp", "the host echo leaves a just-saved user preset loaded");
+
+            h->presets.loadIndex (0);
+            int userIdx = -1;
+            const auto all = h->presets.list();
+            for (int i = 0; i < all.size(); ++i)
+                if (! all[i].factory && all[i].name == "zzz Host Clamp")
+                    userIdx = i;
+            h->presets.loadIndex (userIdx);
+            expect (h->presets.currentName() == "zzz Host Clamp", "the panel menu loads a user preset");
+            hostEcho();
+            expect (h->presets.currentName() == "zzz Host Clamp", "the host echo leaves a chosen user preset loaded");
+
+            h->setCurrentProgram (4);
+            expect (h->presets.currentName() == factoryPresets()[4].name, "the host can still select factory programs");
+            expect (h->getCurrentProgram() == 4, "the host reads back the factory program it selected");
+            expect (h->getProgramName (4) == factoryPresets()[4].name, "program names come from the factory list");
+
+            for (auto& e : h->presets.list())
+                if (! e.factory && e.name == "zzz Host Clamp")
+                    h->presets.remove (e);
+        }
+
         for (auto& e : p->presets.list())
             if (! e.factory && e.name == "Test Patch")
                 expect (p->presets.remove (e), "delete user preset");
