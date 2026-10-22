@@ -151,16 +151,35 @@ Pass any of these at configure time, for example
 
 [`.github/workflows/build.yml`](.github/workflows/build.yml) runs the same
 configure, build and test steps on macOS (universal), Windows (x64) and Linux
-(x64):
+(x64). It only runs when you start it: on GitHub, open **Actions** →
+**Build** → **Run workflow**, and choose a branch or tag under **Use workflow
+from**.
 
-- on every push to `main`
-- on every pull request
-- on demand from the Actions tab (**Build** → **Run workflow**)
-
-Changes that only touch Markdown or `docs/` don't trigger a run. Each run
-uploads the packaged plugins as artifacts, kept for 30 days. Those are
-development builds; the downloads for players are on the
+A run on a branch uploads the packaged plugins as artifacts, kept for 30 days.
+Those are development builds; the downloads for players are on the
 [Releases page](../../releases/latest).
+
+### Making a release
+
+1. Set the version in `CMakeLists.txt`, for example
+   `project(Fractone VERSION 1.1.0 ...)`.
+2. Write the release text in
+   [`.github/release-notes.md`](.github/release-notes.md).
+3. Commit both, then tag and push:
+
+   ```sh
+   git tag -a v1.1.0 -m "Fractone 1.1.0"
+   git push origin main v1.1.0
+   ```
+
+4. On GitHub, run the **Build** workflow and pick the `v1.1.0` tag under
+   **Use workflow from**.
+
+A run on a tag builds all three platforms and creates a **draft** release
+with the archives and release notes attached. Review it on the Releases page
+and press **Publish**. A tag that doesn't match the version in
+`CMakeLists.txt` stops the build, so the downloads can't be labelled with the
+wrong version.
 
 ## Using it in Ableton Live
 
@@ -339,21 +358,6 @@ These are the CCs from the hardware's MIDI implementation:
 | 29 / 61 | VCA decay | " |
 | 113 | Rhythm logic | 0-63 OR, 64-127 XOR |
 | 120, 123 | All sound / notes off | |
-
-## Where it differs from the hardware
-
-- **Clock**: synced by default. Each pulse is one RATE step of Live's tempo
-  (1/16 matches the hardware's MIDI clock), and a Live start, jump or loop
-  resets the patterns. Turn SYNC off for the free-running TEMPO knob.
-- **TEMPO knob curve**: it's squared so slow tempos are easier to set.
-- **SUB assign depth**: a step moves the divisor 3 places per octave of step
-  range. The SUB and RHYTHM CV inputs move it 1.5 places per volt.
-- **Hidden gestures**: fine tune lives on the rail rather than behind OSC 1 +
-  OSC 2. The others (hold EG, hold QUANTIZE, hold SEQ OCT) work as on the
-  hardware.
-- **Not modelled**: SysEx settings, MIDI clock input (Live's tempo is used
-  instead), the Eurorack power and level details, and unit-to-unit analog
-  variation (DRIFT covers the pitch side).
 
 ## Development
 
