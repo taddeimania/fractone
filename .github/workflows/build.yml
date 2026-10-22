@@ -148,14 +148,25 @@ jobs:
         with:
           path: dist
           merge-multiple: true
+          # Keep the .zip archives as they are; by default they'd be unpacked.
+          skip-decompress: true
 
       - name: Create the draft release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           ls -la dist
-          gh release create "$GITHUB_REF_NAME" dist/* \
-            --draft \
-            --verify-tag \
-            --title "Fractone ${GITHUB_REF_NAME#v}" \
-            --notes-file .github/release-notes.md
+          if find dist -mindepth 1 -maxdepth 1 -type d | grep -q .; then
+            echo "::error::Expected only archives in dist/, found folders."
+            exit 1
+          fi
+          # Re-running after a failure: add the files to the existing draft.
+          if gh release view "$GITHUB_REF_NAME" > /dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" dist/* --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" dist/* \
+              --draft \
+              --verify-tag \
+              --title "Fractone ${GITHUB_REF_NAME#v}" \
+              --notes-file .github/release-notes.md
+          fi
