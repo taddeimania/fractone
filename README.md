@@ -14,16 +14,15 @@ hardware this style of synth comes from, so time spent on Fractone carries over.
 
 ## Download
 
-Every push to `main` is built for macOS, Windows and Linux by
-[GitHub Actions](.github/workflows/build.yml). Open the repository's
-**Actions** tab, pick the latest green **Build** run, and download the archive
-for your system from the bottom of its summary page:
+You don't need to build Fractone yourself. Ready-made plugins for macOS,
+Windows and Linux are on the [Releases page](../../releases/latest).
+Download the archive for your system from the latest release:
 
 | Archive | Contains |
 |---|---|
-| `Fractone-<version>-macOS-<commit>.zip` | `Fractone.vst3`, `Fractone.component` (Audio Unit) and `Fractone.app` (standalone); universal for Apple silicon and Intel |
-| `Fractone-<version>-Windows-<commit>.zip` | `Fractone.vst3` and `Fractone.exe` (standalone) |
-| `Fractone-<version>-Linux-<commit>.tar.gz` | `Fractone.vst3` and `Fractone` (standalone) |
+| macOS `.zip` | `Fractone.vst3`, `Fractone.component` (Audio Unit) and `Fractone.app` (standalone); universal for Apple silicon and Intel |
+| Windows `.zip` | `Fractone.vst3` and `Fractone.exe` (standalone) |
+| Linux `.tar.gz` | `Fractone.vst3` and `Fractone` (standalone) |
 
 Then install the plugin:
 
@@ -159,7 +158,9 @@ configure, build and test steps on macOS (universal), Windows (x64) and Linux
 - on demand from the Actions tab (**Build** → **Run workflow**)
 
 Changes that only touch Markdown or `docs/` don't trigger a run. Each run
-uploads the packaged plugins, kept for 30 days.
+uploads the packaged plugins as artifacts, kept for 30 days. Those are
+development builds; the downloads for players are on the
+[Releases page](../../releases/latest).
 
 ## Using it in Ableton Live
 
