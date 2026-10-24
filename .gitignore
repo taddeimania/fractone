@@ -93,4 +93,6 @@ desktop.ini
 # ---------------------------------------------------------------------------
 .ref/
 *.pdf
+# ...except the project's own guides.
+!docs/*.pdf
 *.tgz
