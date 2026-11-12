@@ -11,11 +11,7 @@ DICE isn't on the original hardware. Everything else about Fractone's sound and 
 ### Install
 Download the file for your system below.
 
-- **macOS** (universal, Apple silicon + Intel): unzip, move `Fractone.vst3` into `~/Library/Audio/Plug-Ins/VST3` and `Fractone.component` into `~/Library/Audio/Plug-Ins/Components`, then run:
-  ```sh
-  xattr -dr com.apple.quarantine ~/Library/Audio/Plug-Ins/VST3/Fractone.vst3 ~/Library/Audio/Plug-Ins/Components/Fractone.component
-  ```
-  The build isn't signed with an Apple developer certificate, so without this step your DAW won't load it. `Fractone.app` is a standalone version you can run without a DAW.
+- **macOS** (universal, Apple silicon + Intel): unzip, move `Fractone.vst3` into `~/Library/Audio/Plug-Ins/VST3` and `Fractone.component` into `~/Library/Audio/Plug-Ins/Components`. The build is signed and notarised by Apple, so your DAW loads it straight away. `Fractone.app` is a standalone version you can run without a DAW.
 - **Windows**: unzip and copy the `Fractone.vst3` folder into `C:\Program Files\Common Files\VST3`. `Fractone.exe` is the standalone version.
 - **Linux**: extract, then copy `Fractone.vst3` into `~/.vst3`.
 
