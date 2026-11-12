@@ -27,16 +27,8 @@ Download the archive for your system from the latest release:
 Then install the plugin:
 
 - **macOS**: move `Fractone.vst3` into `~/Library/Audio/Plug-Ins/VST3` and
-  `Fractone.component` into `~/Library/Audio/Plug-Ins/Components`, then run:
-
-  ```sh
-  xattr -dr com.apple.quarantine ~/Library/Audio/Plug-Ins/VST3/Fractone.vst3 \
-      ~/Library/Audio/Plug-Ins/Components/Fractone.component
-  ```
-
-  The builds aren't signed with an Apple developer certificate, so macOS
-  quarantines them when downloaded, and the DAW refuses to load them until
-  you clear that flag.
+  `Fractone.component` into `~/Library/Audio/Plug-Ins/Components`. The builds
+  are signed and notarised by Apple, so your DAW loads them straight away.
 - **Windows**: copy the whole `Fractone.vst3` folder into
   `C:\Program Files\Common Files\VST3`.
 - **Linux**: copy `Fractone.vst3` into `~/.vst3`.
