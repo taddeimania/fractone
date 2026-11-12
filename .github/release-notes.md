@@ -1,3 +1,5 @@
+Fractone 1.1.1: the macOS build is signed and notarised by Apple, so your DAW loads it straight away, with no quarantine command first. Nothing else has changed since 1.1.0.
+
 Fractone 1.1.0 adds DICE: one click writes a musical phrase for a sequencer.
 
 ### New
